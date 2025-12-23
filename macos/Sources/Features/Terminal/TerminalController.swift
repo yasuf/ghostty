@@ -61,6 +61,9 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     /// This will be set to the initial frame of the window from the xib on load.
     private var initialFrame: NSRect? = nil
 
+    /// This will track the previously visited tab so users can tab back and forth to it.
+    private var previousTabByGroup: [ObjectIdentifier: Weak<NSWindow>] = [:]
+
     init(_ ghostty: Ghostty.App,
          withBaseConfig base: Ghostty.SurfaceConfiguration? = nil,
          withSurfaceTree tree: SplitTree<Ghostty.SurfaceView>? = nil,
@@ -478,7 +481,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         tabWindowsHash = v
         self.relabelTabs()
     }
-    
+
     override func syncAppearance() {
         // When our focus changes, we update our window appearance based on the
         // currently focused surface.
@@ -1076,6 +1079,16 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             LastWindowPosition.shared.save(window)
         }
 
+        if let window,
+           let tabGroup = window.tabGroup {
+           let groupId = ObjectIdentifier(tabGroup)
+
+            if let previousWindow = tabGroup.selectedWindow,
+                previousWindow !== window {
+                    self.previousTabByGroup[groupId] = Weak(previousWindow)
+                }
+        }
+
         // Remember our last main
         Self.lastMain = self
     }
@@ -1353,6 +1366,18 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 }
             } else if (tabIndex == GHOSTTY_GOTO_TAB_LAST.rawValue) {
                 finalIndex = tabbedWindows.count - 1
+            } else if (tabIndex == GHOSTTY_GOTO_TAB_RECENT.rawValue) {
+                guard let tabGroup = window.tabGroup else { return }
+                let groupId = ObjectIdentifier(tabGroup)
+                
+                guard
+                    let previousWindow = self.previousTabByGroup[groupId]?.value,
+                    let prevIndex = tabbedWindows.firstIndex(of: previousWindow)
+                else {
+                    return
+                }
+
+                finalIndex = prevIndex
             } else {
                 return
             }
@@ -1453,24 +1478,24 @@ extension TerminalController {
             guard let window, let tabGroup = window.tabGroup else { return false }
             guard let currentIndex = tabGroup.windows.firstIndex(of: window) else { return false }
             return tabGroup.windows.enumerated().contains { $0.offset > currentIndex }
-            
+
         case #selector(returnToDefaultSize):
             guard let window else { return false }
-            
+
             // Native fullscreen windows can't revert to default size.
             if window.styleMask.contains(.fullScreen) {
                 return false
             }
-            
+
             // If we're fullscreen at all then we can't change size
             if fullscreenStyle?.isFullscreen ?? false {
                 return false
             }
-            
+
             // If our window is already the default size or we don't have a
             // default size, then disable.
             return defaultSize?.isChanged(for: window) ?? false
-            
+
         default:
             return super.validateMenuItem(item)
         }

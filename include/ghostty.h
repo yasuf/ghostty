@@ -544,6 +544,7 @@ typedef enum {
   GHOSTTY_GOTO_TAB_PREVIOUS = -1,
   GHOSTTY_GOTO_TAB_NEXT = -2,
   GHOSTTY_GOTO_TAB_LAST = -3,
+  GHOSTTY_GOTO_TAB_RECENT = -4,
 } ghostty_action_goto_tab_e;
 
 // apprt.action.Fullscreen
